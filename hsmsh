@@ -1,0 +1,213 @@
+void main() {
+  print("TrueChat");
+}import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  MobileAds.instance.initialize();
+  runApp(const TrueChat());
+}
+
+class TrueChat extends StatelessWidget {
+  const TrueChat({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: StreamBuilder(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) return const Home();
+          return const AuthPage();
+        },
+      ),
+    );
+  }
+}
+
+/* ================= AUTH ================= */
+
+class AuthPage extends StatelessWidget {
+  const AuthPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    TextEditingController email = TextEditingController();
+    TextEditingController pass = TextEditingController();
+    TextEditingController name = TextEditingController();
+
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            TextField(controller: name, decoration: const InputDecoration(hintText: "Name")),
+            TextField(controller: email, decoration: const InputDecoration(hintText: "Email")),
+            TextField(controller: pass, decoration: const InputDecoration(hintText: "Password")),
+            const SizedBox(height: 20),
+
+            ElevatedButton(
+              onPressed: () async {
+                var user = await FirebaseAuth.instance
+                    .createUserWithEmailAndPassword(
+                        email: email.text, password: pass.text);
+
+                FirebaseFirestore.instance.collection("users").doc(user.user!.uid).set({
+                  "username": name.text,
+                  "coins": 0,
+                  "online": true,
+                });
+              },
+              child: const Text("Sign Up"),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/* ================= HOME (3-IN-1) ================= */
+
+class Home extends StatefulWidget {
+  const Home({super.key});
+
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
+  int index = 0;
+
+  final pages = [
+    const ChatPage(),
+    const FeedPage(),
+    const ReelsPage(),
+    const ProfilePage(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: pages[index],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: index,
+        onTap: (i) => setState(() => index = i),
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: "Chat"),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Feed"),
+          BottomNavigationBarItem(icon: Icon(Icons.video_library), label: "Reels"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
+        ],
+      ),
+    );
+  }
+}
+
+/* ================= CHAT ================= */
+
+class ChatPage extends StatelessWidget {
+  const ChatPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Chat")),
+      body: StreamBuilder(
+        stream: FirebaseFirestore.instance.collection("users").snapshots(),
+        builder: (context, snapshot) {
+          var users = snapshot.data?.docs ?? [];
+
+          return ListView.builder(
+            itemCount: users.length,
+            itemBuilder: (context, i) {
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.person)),
+                title: Text(users[i]["username"] ?? ""),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/* ================= FEED ================= */
+
+class FeedPage extends StatelessWidget {
+  const FeedPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder(
+      stream: FirebaseFirestore.instance.collection("posts").snapshots(),
+      builder: (context, snapshot) {
+        var posts = snapshot.data?.docs ?? [];
+
+        return ListView.builder(
+          itemCount: posts.length,
+          itemBuilder: (context, i) {
+            return Card(
+              child: Column(
+                children: [
+                  Text(posts[i]["text"] ?? ""),
+                  IconButton(
+                    icon: const Icon(Icons.favorite),
+                    onPressed: () {
+                      posts[i].reference.update({
+                        "likes": FieldValue.increment(1)
+                      });
+                    },
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+/* ================= REELS ================= */
+
+class ReelsPage extends StatelessWidget {
+  const ReelsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Text("REELS SECTION 🎥"),
+    );
+  }
+}
+
+/* ================= PROFILE ================= */
+
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircleAvatar(radius: 40),
+            SizedBox(height: 10),
+            Text("PROFILE"),
+          ],
+        ),
+      ),
+    );
+  }
+}
